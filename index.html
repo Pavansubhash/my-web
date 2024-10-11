@@ -174,7 +174,7 @@
             if (originalUri) {
                 // Redirect to the original URI with the authorization details
                 setTimeout(function() {
-                    window.location.href = `${originalUri}?sp_auth_code=${spAuthCode}&selling_partner_id=${sellerPartnerId}&state=${state}`;
+                    window.location.href = `${originalUri}?sp_auth_code=${spAuthCode}&selling_partner_id=${sellerPartnerId}`;
                 }, 2000); // Delay before redirect to show animation
             }
         } else if (params.has('error')) {
