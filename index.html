@@ -1,9 +1,10 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>  
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Amazon Seller Partner Auth</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" />
     <style>
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -77,119 +78,164 @@
             background-color: #161515;
         }
 
-        .status {
-            margin-top: 20px;
-            font-size: 1.2em;
-            color: green;
-            opacity: 0;
-            animation: fadeInStatus 2s forwards;
+        /* Modal styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0, 0, 0, 0.7); /* Black background with opacity */
+            justify-content: center; /* Center modal horizontally */
+            align-items: center; /* Center modal vertically */
         }
 
-        @keyframes fadeInStatus {
-            0% { opacity: 0; }
-            100% { opacity: 1; }
+        .modal-content {
+            background-color: #fefefe;
+            margin: 0 auto;
+            padding: 20px;
+            border: 1px solid #888;
+            max-width: 90%;
+            max-height: 80%;
+            overflow: auto; /* Enable scrolling if content overflows */
+            border-radius: 10px;
+            text-align: left;
         }
 
-        /* Success animation */
-        .success-animation {
-            position: relative;
-            margin: 20px auto;
-            width: 100px;
-            height: 100px;
-            border: 5px solid #4CAF50;
-            border-radius: 50%;
-            animation: successPop 1s ease-in-out forwards;
+        .modal-header {
+            font-size: 1.5em;
+            margin-bottom: 15px;
+            color: #4CAF50;
         }
 
-        @keyframes successPop {
-            0% {
-                transform: scale(0.5);
-                opacity: 0;
-            }
-            100% {
-                transform: scale(1);
-                opacity: 1;
-            }
+        .responseField {
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            word-wrap: break-word; /* Prevent overflow */
         }
 
-        .checkmark {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 50px;
-            height: 25px;
-            border-left: 5px solid #4CAF50;
-            border-bottom: 5px solid #4CAF50;
-            transform: translate(-50%, -60%) rotate(-45deg);
-            animation: drawCheckmark 1s ease-in-out forwards;
-        }
-
-        @keyframes drawCheckmark {
-            0% { width: 0; height: 0; }
-            100% { width: 50px; height: 25px; }
+        .loading {
+            display: none; /* Initially hidden */
         }
     </style>
 </head>
 <body>
 
     <div class="container">
-        <!-- Amazon Seller Logo -->
         <img src="https://cdn6.aptoide.com/imgs/2/a/8/2a8a1d8d60864328402ca2f621ac344e_fgraphic.png" alt="Amazon Seller Logo">
 
         <h1>Amazon Seller Partner Authentication</h1>
 
-        <!-- Input fields for client ID and state -->
         <input type="text" id="clientIdInput" placeholder="Enter App ID" required>
         <input type="text" id="stateInput" placeholder="Enter State URL" required>
 
         <button id="authorizeButton">Connect</button>
+    </div>
 
-        <div class="status" id="status"></div>
-        <div class="success-animation" id="successAnimation" style="display: none;">
-            <div class="checkmark"></div>
+    <div id="responseModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Response Received</div>
+            <div id="responseFields"></div>
+            <div class="loading">Redirecting in <span id="countdown">10</span> seconds...</div>
         </div>
     </div>
 
     <script>
         document.getElementById('authorizeButton').addEventListener('click', function () {
-            // Get the client ID and state entered by the user
             const clientId = document.getElementById('clientIdInput').value;
             const state = document.getElementById('stateInput').value;
 
             if (!clientId || !state) {
-                document.getElementById('status').innerHTML = 'Please provide both Client ID and State.';
+                alert('Please provide both Client ID and State.');
                 return;
             }
 
-            // Construct the OAuth authorization URL
             const authUrl = `https://sellercentral.amazon.com/apps/authorize/consent?application_id=${clientId}&state=${state}&version=beta`;
-
-            // Redirect to Amazon's sign-in page
             window.location.href = authUrl;
         });
 
-        // Check if the page was loaded with query parameters (after redirect from Amazon)
         const params = new URLSearchParams(window.location.search);
         if (params.has('spapi_oauth_code') && params.has('state') && params.has('selling_partner_id')) {
             const spAuthCode = params.get('spapi_oauth_code');
             const sellerPartnerId = params.get('selling_partner_id');
+            const state = params.get('state');
 
-            // Display success status
-            document.getElementById('status').innerHTML = 'Connection successful!';
-            document.getElementById('successAnimation').style.display = 'block';
+            const payload = {
+                state: state,
+                sellingPartnerId: sellerPartnerId,
+                spapiOuth: spAuthCode,
+                AppinstallationID: "2373"
+            };
 
-            // Optional: Redirect to the original URI stored in 'state'
-            const originalUri = params.get('state');
-            if (originalUri) {
-                // Redirect to the original URI with the authorization details
-                setTimeout(function() {
-                    window.location.href = `${originalUri}?sp_auth_code=${spAuthCode}&selling_partner_id=${sellerPartnerId}`;
-                }, 2000); // Delay before redirect to show animation
-            }
-        } else if (params.has('error')) {
-            // Handle errors if the authorization failed
-            document.getElementById('status').innerHTML = 'Connection unsuccessful: ' + params.get('error');
+            fetch('http://localhost:8080/_ah/api/esb/v1/SaveAmzSpAccessToken', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Failed to save access token.');
+                }
+            })
+            .then(data => {
+                const responseFieldsDiv = document.getElementById('responseFields');
+                responseFieldsDiv.innerHTML = `
+                    <div class="responseField"><strong>App Installation ID:</strong> ${data.AppinstallationID}</div>
+                    <div class="responseField"><strong>State:</strong> <a href="${data.state}" target="_blank">${data.state}</a></div>
+                    <div class="responseField"><strong>Selling Partner ID:</strong> ${data.sellingPartnerId || 'N/A'}</div>
+                    <div class="responseField"><strong>Access Token:</strong> ${data.accessToken || 'N/A'}</div>
+                    <div class="responseField"><strong>SP API OAuth:</strong> ${data.spapiOuth || 'N/A'}</div>
+                    <div class="responseField"><strong>Refresh Token:</strong> ${data.refreshToken || 'N/A'}</div>
+                `;
+
+                // Adjust modal size based on content
+                const modalContent = document.querySelector('.modal-content');
+                modalContent.style.maxWidth = '600px'; // Set a reasonable max width
+                modalContent.style.maxHeight = '90%'; // Allow for height adjustment
+                modalContent.scrollTop = 0; // Reset scroll position
+
+                const modal = document.getElementById('responseModal');
+                modal.style.display = 'flex'; // Center modal by using flexbox
+
+                let countdown = 10;
+                const countdownDisplay = document.getElementById('countdown');
+                const interval = setInterval(() => {
+                    countdown--;
+                    countdownDisplay.innerText = countdown;
+                    if (countdown <= 0) {
+                        clearInterval(interval);
+                        const redirectUrl = new URL(data.state);
+                        redirectUrl.searchParams.append('AppinstallationID', data.AppinstallationID);
+                        redirectUrl.searchParams.append('sellingPartnerId', data.sellingPartnerId);
+                        redirectUrl.searchParams.append('accessToken', data.accessToken);
+                        redirectUrl.searchParams.append('spapiOuth', data.spapiOuth);
+                        redirectUrl.searchParams.append('refreshToken', data.refreshToken);
+                        window.location.href = redirectUrl; // Redirect after 10 seconds
+                    }
+                }, 1000);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while processing the response.');
+            });
         }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('responseModal');
+            if (event.target === modal) {
+                modal.style.display = 'none';
+            }
+        };
     </script>
 
 </body>
